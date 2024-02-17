@@ -1,4 +1,4 @@
-module firstapp.com/m/v2
+module ujjwal/Mess-menu
 
 go 1.22.0
 
