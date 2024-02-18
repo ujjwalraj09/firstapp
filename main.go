@@ -4,94 +4,74 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+
+	"github.com/tealeg/xlsx"
 )
 
 type DayOfWeek string
 type Meal string
 
-// bringing the excel data into map of map form
-var Menu = map[DayOfWeek]map[Meal][]string{
-	"Monday": {
-		"Breakfast": {"CHOICE OF EGG", "CORNFLAKES", "BREAD +JAM", "POHA", "GRAPES", "TEA+ COFFEE", "Milk"},
-		"Lunch":     {"DISCO PAPAD", "KADHI PAKODA", "MADRASI ALOO", "VEG KHICHDI", "CHAPATI", "PLAIN RICE"},
-		"Dinner":    {"MIRCH KE TAPORE/ LAHSUN CHUTNEY", "ALOO RASSA", "DAL FRY", "BATI/ CHAPATI", "PLAIN RICE", "RASAM"},
-	},
-	"Tuesday": {
-		"Breakfast": {"NO EGG", "CORNFLAKES", "BREAD +JAM", "ALOO PARATHA", "CURD", "PICKEL", "KINU", "TEA+ COFFEE", "Milk", "TEA+ COFFEE"},
-		"Lunch":     {"VEG KADHAI", "DAL MAHARANI", "PLAIN RICE", "SAMBAR", "SWEET LASSI"},
-		"Dinner":    {"SWEET LASSI", "HOT CHOCO MILK", "CHOLE MASALA"},
-	},
-	"Wednesday": {
-		"Breakfast": {"CHOICE OF EGG", "CORNFLAKES", "BREAD +JAM", "BREAD PAKODA", "TOMATO KETCHUP", "SWEET DALIYA", "TEA+ COFFEE", "Milk"},
-		"Lunch":     {"CHAPATI", "TAWA VEG (NO KARELA)", "PLAIN RICE"},
-		"Dinner":    {"TAWA VEG (NO KARELA)", "DAL PALAK"},
-	},
-	"Thursday": {
-		"Breakfast": {"CHOICE OF EGG", "CORNFLAKES", "BREAD +JAM", "MUTTER KULCHA", "KULCHA", "CUT ONION LEMON", "PAPAYA", "TEA+ COFFEE", "Milk"},
-		"Lunch":     {"GATTA CURRY", "CHANNA DAL TADKA"},
-		"Dinner":    {"SAMBAR", "BUTTER DAL TADKA", "CHAPATI", "GULAB JAMUN"},
-	},
-	"Friday": {
-		"Breakfast": {"CHOICE OF EGG", "TEA+ COFFEE", "Milk"},
-		"Lunch":     {"RAJMA MASALA", "SHIKANJI"},
-		"Dinner":    {"VEG MANCHURIAN", "EGG FRIED RICE / VEG FRIED RICE", "CHAPATI", "BALIUSHAHI"},
-	},
-	"Saturday": {
-		"Breakfast": {"CHOICE OF EGG", "CORNFLAKES", "BREAD +JAM", "SUJI UPMA", "ADRAK CHUTNEY", "TEA+ COFFEE", "Milk"},
-		"Lunch":     {"MIX VEG PARATHA", "RAGDA MUTTER", "FRENCH FRIES"},
-		"Dinner":    {"GREEN CHUTNEY", "PASTA SALAD"},
-	},
-	"Sunday": {
-		"Breakfast": {"CHOICE OF EGG", "CORNFLAKES", "BREAD +JAM", "MASALA DOSA", "SAMBHAR", "GRAPES", "TEA+ COFFEE", "Milk"},
-		"Lunch":     {"PANEER LABABDAR", "DHABA CHICKEN", "NAAN / CHAPATI"},
-		"Dinner":    {"METHI MALAI MUTTER", "DAL LASOONI", "PLAIN RICE", "HOT & SOUR SOUP"},
-	},
-}
+var Menu = map[DayOfWeek]map[string][]string{}
 
-// 1st part function
-func GetMenu(day DayOfWeek, meal Meal) ([]string, bool) {
-
-	menuForDay, ok := Menu[day]
-	if !ok {
-		return nil, false
+func parseExcel(filePath string) error {
+	xlFile, err := xlsx.OpenFile(filePath)
+	if err != nil {
+		return err
 	}
 
-	menuForMeal, ok := menuForDay[meal]
-	if !ok {
-		return nil, false
+	currentDay := ""
+	currentMeal := ""
+	for _, sheet := range xlFile.Sheets {
+		for _, row := range sheet.Rows {
+			cellValue := strings.TrimSpace(row.Cells[0].String())
+			if cellValue != "" {
+				currentDay = cellValue
+				Menu[DayOfWeek(currentDay)] = make(map[string][]string)
+			} else {
+				cellValue = strings.TrimSpace(row.Cells[1].String())
+				if cellValue == "Date" {
+					date := strings.TrimSpace(row.Cells[2].String())
+					Menu[DayOfWeek(currentDay)]["Date"] = []string{date}
+				} else {
+					cellValue = strings.TrimSpace(row.Cells[2].String())
+					if cellValue != "" {
+						currentMeal = cellValue
+						Menu[DayOfWeek(currentDay)][string(currentMeal)] = []string{}
+					} else {
+						item := strings.TrimSpace(row.Cells[3].String())
+						if item != "" {
+							Menu[DayOfWeek(currentDay)][string(currentMeal)] = append(Menu[DayOfWeek(currentDay)][string(currentMeal)], item)
+						}
+					}
+				}
+			}
+		}
 	}
 
-	return menuForMeal, true
+	return nil
 }
 
-// 2nd part function
+func GetMenuItems(day DayOfWeek, meal Meal) ([]string, bool) {
+	items, ok := Menu[day][string(meal)]
+	return items, ok
+}
+
 func CountMenuItems(day DayOfWeek, meal Meal) int {
-	menuItems, found := Menu[day][meal]
-	if !found {
-		return 0
-	}
-	return len(menuItems)
+	return len(Menu[day][string(meal)])
 }
 
-// 3rd part function
 func IsItemInMeal(day DayOfWeek, meal Meal, item string) bool {
-
-	menuItems, found := Menu[day][meal]
-	if !found {
-		return false
-	}
-
-	for _, menuItem := range menuItems {
-		if menuItem == item {
+	items := Menu[day][string(meal)]
+	for _, i := range items {
+		if i == item {
 			return true
 		}
 	}
 	return false
 }
 
-// 4th converting to json
 func SaveMenuAsJSON(filename string) error {
-
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -112,7 +92,6 @@ func SaveMenuAsJSON(filename string) error {
 	return nil
 }
 
-// creating structure
 type MealInstance struct {
 	Day   DayOfWeek
 	Date  string
@@ -130,27 +109,14 @@ func (m *MealInstance) PrintDetails() {
 	}
 	fmt.Println()
 }
-func getDateForMeal(day DayOfWeek) string {
-
-	dateMap := map[DayOfWeek]string{
-		"Monday":    "05-feb-24",
-		"Tuesday":   "06-feb-24",
-		"Wednesday": "07-feb-24",
-		"Thursday":  "08-feb-24",
-		"Friday":    "09-feb-24",
-		"Saturday":  "10-feb-24",
-		"Sunday":    "11s-feb-24",
-	}
-
-	date, found := dateMap[day]
-	if !found {
-
-		return ""
-	}
-	return date
-}
 
 func main() {
+	err := parseExcel("Sample-Menu.xlsx")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
 	var choice int
 	fmt.Println("Enter your choice:")
 	fmt.Println("1. GetMenu")
@@ -158,7 +124,7 @@ func main() {
 	fmt.Println("3. IsItemInMeal")
 	fmt.Println("4. SaveMenuAsJSON")
 	fmt.Println("5. PrintDetails")
-	fmt.Println("The nputs are case sensitive")
+	fmt.Println("The inputs are case sensitive")
 
 	fmt.Scanln(&choice)
 
@@ -169,8 +135,9 @@ func main() {
 		fmt.Scanln(&dayInput)
 		fmt.Println("Enter the meal:")
 		fmt.Scanln(&mealInput)
-		if menu, ok := GetMenu(DayOfWeek(dayInput), Meal(mealInput)); ok {
-			fmt.Printf("%s %s menu: %v\n", dayInput, mealInput, menu)
+		items, ok := GetMenuItems(DayOfWeek(dayInput), Meal(mealInput))
+		if ok {
+			fmt.Printf("%s %s menu: %v\n", dayInput, mealInput, items)
 		} else {
 			fmt.Printf("Menu not found for %s %s\n", dayInput, mealInput)
 		}
@@ -203,11 +170,11 @@ func main() {
 	case 5:
 		for day, meals := range Menu {
 			for meal, items := range meals {
-				date := getDateForMeal(day) // Get the date for the meal instance
+				date := Menu[day]["Date"][0]
 				instance := MealInstance{
 					Day:   day,
 					Date:  date,
-					Meal:  meal,
+					Meal:  Meal(meal),
 					Items: items,
 				}
 				instance.PrintDetails()
