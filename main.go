@@ -78,6 +78,9 @@ func main() {
 		}
 	}
 
+	// Remove specific elements from organizedData
+	removeSpecificElements("DINNER", "WEDNESDAY", "LUNCH", "TUESDAY", "SUNDAY", "MONDAY", "THURSDAY", "FRIDAY", "SATURDAY", "")
+
 	// Menu instance
 	var choice int
 	fmt.Println("Enter your choice:")
@@ -86,7 +89,7 @@ func main() {
 	fmt.Println("3. IsItemInMeal")
 	fmt.Println("4. SaveMenuAsJSON")
 	fmt.Println("5. PrintDetails")
-	fmt.Println("The inputs are case sensitive")
+	fmt.Println("The inputs are case sensitive i.e. day is in capital[ex. MONDAY] and meal is in small [ex. breakfast]")
 
 	fmt.Scanln(&choice)
 
@@ -210,5 +213,26 @@ func (m MealInstance) PrintDetails() {
 	fmt.Println("  Items:")
 	for _, item := range m.Items {
 		fmt.Printf("    %s\n", item)
+	}
+}
+
+func removeSpecificElements(values ...string) {
+	for day, meals := range organizedData {
+		for meal, items := range meals {
+			var updatedItems []string
+			for _, item := range items {
+				skip := false
+				for _, value := range values {
+					if item == value {
+						skip = true
+						break
+					}
+				}
+				if !skip {
+					updatedItems = append(updatedItems, item)
+				}
+			}
+			organizedData[day][meal] = updatedItems
+		}
 	}
 }
